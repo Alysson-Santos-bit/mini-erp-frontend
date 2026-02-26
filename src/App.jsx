@@ -8,10 +8,17 @@ function App() {
   const [clientes, setClientes] = useState([]);
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
+  // Novo estado para a barra de pesquisa
+  const [termoBusca, setTermoBusca] = useState('');// Novo estado para a barra de pesquisa 
+  // Estado para o Dashboard
+  const [estatisticas, setEstatisticas] = useState({ totalClientes: 0, totalTarefas: 0, tarefasConcluidas: 0 }); 
   
   const [clienteSelecionado, setClienteSelecionado] = useState(null); 
   const [tarefas, setTarefas] = useState([]); 
   const [novaTarefa, setNovaTarefa] = useState('');
+  // Estados para a Edição de Tarefas
+  const [tarefaEditando, setTarefaEditando] = useState(null); // Guarda o ID da tarefa que está sendo editada
+  const [textoEdicao, setTextoEdicao] = useState(''); // Guarda o texto novo enquanto o usuário digita
 
   // ==========================================
   // ESTADOS DE SEGURANÇA (LOGIN)
@@ -19,11 +26,19 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [emailLogin, setEmailLogin] = useState('');
   const [senhaLogin, setSenhaLogin] = useState('');
+  // ==========================================
+  // LÓGICA DE PESQUISA
+  // ==========================================
+  // Filtra a lista original em tempo real. Se o termoBusca estiver vazio, mostra todos!
+  const clientesFiltrados = clientes.filter((cliente) => 
+    cliente.nome.toLowerCase().includes(termoBusca.toLowerCase())
+  );
 
   // O React agora só busca os clientes se tivermos um Token válido!
   useEffect(() => {
     if (token) {
       buscarClientes();
+      buscarEstatisticas();
     }
   }, [token]);
 
@@ -53,6 +68,14 @@ function App() {
     setToken(null);
     setClienteSelecionado(null); // Fecha o painel de tarefas se estiver aberto
   }
+  async function buscarEstatisticas() {
+    try {
+      const resposta = await api.get('/estatisticas');
+      setEstatisticas(resposta.data);
+    } catch (erro) {
+      console.error("Erro ao buscar estatísticas:", erro);
+    }
+  }
 
   // ==========================================
   // FUNÇÕES DE CLIENTES E TAREFAS
@@ -77,6 +100,7 @@ function App() {
     } catch (erro) {
       alert("Erro ao salvar o cliente.");
     }
+    buscarEstatisticas();
   }
 
   async function excluirCliente(id) {
@@ -111,6 +135,7 @@ function App() {
     } catch (erro) {
       alert("Erro ao salvar a tarefa.");
     }
+    buscarEstatisticas();
   }
 
   async function alternarStatusTarefa(tarefa) {
@@ -120,6 +145,7 @@ function App() {
     } catch (erro) {
       alert("Erro ao atualizar o estado da tarefa.");
     }
+    buscarEstatisticas();
   }
 
   async function apagarTarefa(id) {
@@ -131,6 +157,20 @@ function App() {
       } catch (erro) {
         alert("Erro ao apagar a tarefa.");
       }
+    }
+  }
+  // 6. FUNÇÃO PARA SALVAR A EDIÇÃO DA TAREFA
+  async function salvarEdicaoTarefa(id) {
+    if (!textoEdicao) return alert("O texto não pode ficar vazio!");
+    
+    try {
+      await api.put(`/tarefas/${id}/titulo`, { titulo: textoEdicao });
+      
+      setTarefaEditando(null); // Sai do "modo de edição"
+      abrirTarefas(clienteSelecionado); // Atualiza a lista na tela
+      buscarEstatisticas(); // Atualiza os números do dashboard
+    } catch (erro) {
+      alert("Erro ao editar a tarefa.");
     }
   }
 
@@ -183,6 +223,28 @@ function App() {
           Sair do Sistema
         </button>
       </div>
+      {/* 📊 DASHBOARD DE ESTATÍSTICAS */}
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
+        
+        {/* Cartão 1: Clientes */}
+        <div style={{ flex: 1, background: '#3498db', color: 'white', padding: '20px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontWeight: 'normal' }}>Total de Clientes</h4>
+          <h2 style={{ margin: 0, fontSize: '2.5rem' }}>{estatisticas.totalClientes}</h2>
+        </div>
+
+        {/* Cartão 2: Tarefas Totais */}
+        <div style={{ flex: 1, background: '#9b59b6', color: 'white', padding: '20px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontWeight: 'normal' }}>Tarefas Criadas</h4>
+          <h2 style={{ margin: 0, fontSize: '2.5rem' }}>{estatisticas.totalTarefas}</h2>
+        </div>
+
+        {/* Cartão 3: Tarefas Concluídas */}
+        <div style={{ flex: 1, background: '#2ecc71', color: 'white', padding: '20px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h4 style={{ margin: '0 0 10px 0', fontWeight: 'normal' }}>Concluídas</h4>
+          <h2 style={{ margin: 0, fontSize: '2.5rem' }}>{estatisticas.tarefasConcluidas}</h2>
+        </div>
+
+      </div>
       
       {/* 3. O Formulário Visual */}
       <div style={{ background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
@@ -209,12 +271,22 @@ function App() {
       </div>
 
       <h2>Lista de Clientes</h2>
+      {/* 🔍 NOVA BARRA DE PESQUISA */}
+      <div style={{ marginBottom: '20px' }}>
+        <input 
+          type="text" 
+          placeholder="🔍 Buscar cliente por nome..." 
+          value={termoBusca}
+          onChange={(e) => setTermoBusca(e.target.value)}
+          style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' }}
+        />
+      </div>
 
-      {clientes.length === 0 ? (
+      {clientesFiltrados.length === 0 ? (
         <p>Nenhum cliente cadastrado.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
-          {clientes.map((cliente) => (
+          {clientesFiltrados.map((cliente) => (
             <li 
               key={cliente.id} 
               style={{ 
@@ -278,26 +350,55 @@ function App() {
               {tarefas.map(tarefa => (
                 <li key={tarefa.id} style={{ background: 'white', margin: '5px 0', padding: '10px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   
-                  <span style={{ textDecoration: tarefa.concluida ? 'line-through' : 'none', color: tarefa.concluida ? '#95a5a6' : 'black', flex: 1 }}>
-                    {tarefa.concluida ? '✅' : '⏳'} {tarefa.titulo}
-                  </span>
+                  {/* SE ESTIVER EDITANDO, MOSTRA O INPUT. SE NÃO, MOSTRA O TEXTO NORMAL */}
+                  {tarefaEditando === tarefa.id ? (
+                    <div style={{ display: 'flex', flex: 1, marginRight: '10px', gap: '5px' }}>
+                      <input 
+                        type="text" 
+                        value={textoEdicao} 
+                        onChange={(e) => setTextoEdicao(e.target.value)} 
+                        style={{ flex: 1, padding: '5px', borderRadius: '4px', border: '1px solid #3498db' }}
+                        autoFocus
+                      />
+                      <button onClick={() => salvarEdicaoTarefa(tarefa.id)} style={{ background: '#3498db', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
+                      <button onClick={() => setTarefaEditando(null)} style={{ background: '#95a5a6', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* TEXTO NORMAL DA TAREFA */}
+                      <span style={{ textDecoration: tarefa.concluida ? 'line-through' : 'none', color: tarefa.concluida ? '#95a5a6' : 'black', flex: 1 }}>
+                        {tarefa.concluida ? '✅' : '⏳'} {tarefa.titulo}
+                      </span>
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      onClick={() => alternarStatusTarefa(tarefa)} 
-                      style={{ background: tarefa.concluida ? '#f39c12' : '#27ae60', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      {tarefa.concluida ? 'Desfazer' : 'Concluir'}
-                    </button>
-                    
-                    <button 
-                      onClick={() => apagarTarefa(tarefa.id)} 
-                      style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      Apagar
-                    </button>
-                  </div>
+                      {/* BOTÕES DE AÇÃO */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        
+                        {/* NOVO BOTÃO DE EDITAR (Some se a tarefa estiver concluída) */}
+                        {!tarefa.concluida && (
+                          <button 
+                            onClick={() => { setTarefaEditando(tarefa.id); setTextoEdicao(tarefa.titulo); }} 
+                            style={{ background: '#f1c40f', color: 'black', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            ✏️ Editar
+                          </button>
+                        )}
 
+                        <button 
+                          onClick={() => alternarStatusTarefa(tarefa)} 
+                          style={{ background: tarefa.concluida ? '#f39c12' : '#27ae60', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          {tarefa.concluida ? 'Desfazer' : 'Concluir'}
+                        </button>
+                        
+                        <button 
+                          onClick={() => apagarTarefa(tarefa.id)} 
+                          style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          Apagar
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
