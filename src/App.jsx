@@ -19,6 +19,16 @@ function App() {
   // Estados para a Edição de Tarefas
   const [tarefaEditando, setTarefaEditando] = useState(null); // Guarda o ID da tarefa que está sendo editada
   const [textoEdicao, setTextoEdicao] = useState(''); // Guarda o texto novo enquanto o usuário digita
+  // ==========================================
+  // ESTADOS DO MÓDULO DE PRODUTOS
+  // ==========================================
+  const [produtos, setProdutos] = useState([]);
+  const [nomeProduto, setNomeProduto] = useState('');
+  const [precoProduto, setPrecoProduto] = useState('');
+  const [estoqueProduto, setEstoqueProduto] = useState('');
+
+  // Estado que controla qual tela está aberta no momento
+  const [abaAtiva, setAbaAtiva] = useState('clientes'); // Começa sempre na aba de clientes
 
   // ==========================================
   // ESTADOS DE SEGURANÇA (LOGIN)
@@ -39,6 +49,7 @@ function App() {
     if (token) {
       buscarClientes();
       buscarEstatisticas();
+      buscarProdutos(); // <-- NOVA LINHA AQUI!
     }
   }, [token]);
 
@@ -173,6 +184,48 @@ function App() {
       alert("Erro ao editar a tarefa.");
     }
   }
+  // ==========================================
+  // FUNÇÕES DE PRODUTOS
+  // ==========================================
+  async function buscarProdutos() {
+    try {
+      const resposta = await api.get('/produtos');
+      setProdutos(resposta.data);
+    } catch (erro) {
+      console.error("Erro ao buscar produtos:", erro);
+    }
+  }
+
+  async function adicionarProduto(e) {
+    e.preventDefault(); // Evita que a página recarregue
+    try {
+      // Converte o preço para número decimal e o estoque para número inteiro antes de enviar
+      await api.post('/produtos', { 
+        nome: nomeProduto, 
+        preco: parseFloat(precoProduto), 
+        estoque: parseInt(estoqueProduto) 
+      });
+      
+      // Limpa os campos e busca a lista atualizada
+      setNomeProduto('');
+      setPrecoProduto('');
+      setEstoqueProduto('');
+      buscarProdutos();
+    } catch (erro) {
+      alert("Erro ao adicionar produto.");
+    }
+  }
+
+  async function excluirProduto(id) {
+    if (window.confirm("Tem certeza que deseja apagar este produto?")) {
+      try {
+        await api.delete(`/produtos/${id}`);
+        buscarProdutos();
+      } catch (erro) {
+        alert("Erro ao excluir produto.");
+      }
+    }
+  }
 
   // ==========================================
   // O GUARDA-COSTAS (TELA DE LOGIN PREMIUM)
@@ -245,6 +298,24 @@ function App() {
           Sair do Sistema
         </button>
       </div>
+      {/* 🧭 MENU DE NAVEGAÇÃO (ABAS) */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-8 border-b border-gray-200 pb-4">
+        <button 
+          onClick={() => setAbaAtiva('clientes')} 
+          className={`px-6 py-3 font-bold rounded-xl transition-all ${abaAtiva === 'clientes' ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+        >
+          👥 Clientes & Tarefas
+        </button>
+        <button 
+          onClick={() => setAbaAtiva('produtos')} 
+          className={`px-6 py-3 font-bold rounded-xl transition-all ${abaAtiva === 'produtos' ? 'bg-blue-600 text-white shadow-md transform scale-105' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+        >
+          📦 Estoque de Produtos
+        </button>
+      </div>
+      {/* ================= ABA DE CLIENTES ================= */}
+      {abaAtiva === 'clientes' && (
+        <div className="animate-fade-in">
       
       {/* 📊 DASHBOARD DE ESTATÍSTICAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -449,8 +520,96 @@ function App() {
           )}
         </div>
       )}
+      </div>
+      )}
+      {/* ================= ABA DE PRODUTOS ================= */}
+      {abaAtiva === 'produtos' && (
+        <div className="animate-fade-in">
+          
+          {/* FORMULÁRIO DE NOVO PRODUTO */}
+          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mb-10">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              📦 Cadastrar Novo Produto
+            </h3>
+            <form onSubmit={adicionarProduto} className="flex flex-col md:flex-row gap-4">
+              <input 
+                type="text" 
+                placeholder="Nome do Produto (ex: Teclado Mecânico)" 
+                value={nomeProduto}
+                onChange={(e) => setNomeProduto(e.target.value)}
+                required
+                className="flex-[2] px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+              <div className="flex flex-1 gap-4">
+                <input 
+                  type="number" 
+                  step="0.01"
+                  placeholder="Preço (R$)" 
+                  value={precoProduto}
+                  onChange={(e) => setPrecoProduto(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+                <input 
+                  type="number" 
+                  placeholder="Estoque" 
+                  value={estoqueProduto}
+                  onChange={(e) => setEstoqueProduto(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all whitespace-nowrap">
+                + Adicionar
+              </button>
+            </form>
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Controle de Estoque</h2>
+          
+          {/* LISTA/GRID DE PRODUTOS */}
+          {produtos.length === 0 ? (
+            <div className="text-center py-10 bg-white rounded-2xl shadow-sm border border-gray-100">
+              <p className="text-gray-500 text-lg">Seu estoque está vazio. Cadastre o primeiro produto! 📦</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {produtos.map((produto) => (
+                <div key={produto.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all flex flex-col group">
+                  <div className="flex justify-between items-start mb-4">
+                    <strong className="text-xl text-gray-800 leading-tight">{produto.nome}</strong>
+                    <button 
+                      onClick={() => excluirProduto(produto.id)} 
+                      className="text-red-400 hover:text-red-600 transition-colors bg-red-50 hover:bg-red-100 p-2 rounded-lg opacity-100 lg:opacity-0 lg:group-hover:opacity-100" 
+                      title="Excluir Produto"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-end">
+                    <div>
+                      <span className="block text-sm text-gray-500 mb-1">Preço Unitário</span>
+                      <span className="text-2xl font-black text-emerald-600">R$ {parseFloat(produto.preco).toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="block text-sm text-gray-500 mb-1">Em Estoque</span>
+                      {/* Dica de Design: Fica vermelho se o estoque for menor que 5! */}
+                      <span className={`text-xl font-bold ${produto.estoque <= 5 ? 'text-red-500 animate-pulse' : 'text-blue-600'}`}>
+                        {produto.estoque} un.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 export default App;
